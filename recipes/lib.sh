@@ -22,6 +22,7 @@ fetch() {
     actual="$(shasum -a 256 "$dir/$name" | cut -d' ' -f1)"
     expected="$(awk -v n="$name" '$1 == n { print $2 }' "$LOCK" 2>/dev/null || true)"
     if [ -z "$expected" ]; then
+        [ -z "${UNPINNED_LOG:-}" ] || mkdir -p "$(dirname "$UNPINNED_LOG")"
         echo "UNPINNED $name $actual" | tee -a "${UNPINNED_LOG:-/dev/null}" >&2
         [ "${ALLOW_UNPINNED:-0}" = 1 ] || die "$name is not pinned in sources.lock"
     elif [ "$actual" != "$expected" ]; then
