@@ -46,6 +46,12 @@ download-options:
   retry: 3
   prefer-pre-built: false
 YML
+# spc looks for pkg-config only in its own buildroot/bin or pkgroot; its
+# `doctor` would fetch a pre-built one. Use the runner's (a build tool, not
+# packaged: only php and php-fpm are copied out of buildroot/bin).
+PKG_CONFIG_BIN="$(command -v pkg-config)" || die "pkg-config is not on PATH"
+mkdir -p buildroot/bin
+ln -sf "$PKG_CONFIG_BIN" buildroot/bin/pkg-config
 php bin/spc craft craft.yml
 
 PHP="$WORK/spc/buildroot/bin/php"
