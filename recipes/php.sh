@@ -40,9 +40,11 @@ craft-options:
   doctor: false
   download: true
   build: true
+# Libraries are built from source too: static-php-cli's pre-built ones
+# (static-php-cli-hosted releases) carry no published checksums.
 download-options:
   retry: 3
-  prefer-pre-built: true
+  prefer-pre-built: false
 YML
 php bin/spc craft craft.yml
 

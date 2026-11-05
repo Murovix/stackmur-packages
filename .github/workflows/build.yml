@@ -97,6 +97,9 @@ jobs:
         run: recipes/php.sh "${{ matrix.php }}" "stage/php-${{ matrix.php }}"
         env:
           WORK_DIR: ${{ runner.temp }}/work
+          # static-php-cli looks up release URLs through the GitHub API; the
+          # anonymous limit is shared by every job on the runner's address.
+          GITHUB_TOKEN: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
           pattern: stage-*
