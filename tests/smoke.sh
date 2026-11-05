@@ -12,7 +12,8 @@ COMPOSER="$(cd "$3" && pwd)/bin/composer.phar"
 MINOR="$4"
 PORT="${SMOKE_PORT:-18080}"
 
-T="$(mktemp -d "${TMPDIR:-/tmp}/stackmur-smoke.XXXXXX")"
+# Physical path: macOS reports /var/folders/... as /private/var/folders/...
+T="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/stackmur-smoke.XXXXXX")" && pwd -P)"
 PIDS=()
 cleanup() {
     for pid in "${PIDS[@]}"; do kill "$pid" 2>/dev/null || true; done
