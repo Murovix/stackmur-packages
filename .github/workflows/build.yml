@@ -100,6 +100,15 @@ jobs:
           # static-php-cli looks up release URLs through the GitHub API; the
           # anonymous limit is shared by every job on the runner's address.
           GITHUB_TOKEN: ${{ github.token }}
+      # spc keeps compiler output in its own log, not in the job's.
+      - name: static-php-cli log (on failure)
+        if: failure()
+        run: tail -n 300 "${{ runner.temp }}/work/php-${{ matrix.php }}/spc/log/spc.shell.log" || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: spc-log-php-${{ matrix.php }}
+          path: ${{ runner.temp }}/work/php-${{ matrix.php }}/spc/log/
       - uses: actions/download-artifact@v4
         with:
           pattern: stage-*
