@@ -1,0 +1,3 @@
+# file sha256 — every source tarball a recipe downloads. A file missing here
+# fails the build unless ALLOW_UNPINNED=1, and is never published.
+# openssl-3.5.9.tar.gz: compare with the .sha256 published next to it.

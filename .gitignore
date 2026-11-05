@@ -1,0 +1,5 @@
+/work/
+/stage/
+/dist/
+/tools/pkgtool/target/
+*.key

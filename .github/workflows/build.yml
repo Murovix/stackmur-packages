@@ -1,0 +1,169 @@
+name: build
+
+# macOS minutes are expensive on private repositories, so full builds run on
+# pull requests and by hand; publishing only by hand from main.
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Sign the manifest and publish a release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  ALLOW_UNPINNED: "1"
+
+jobs:
+  pkgtool:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+        working-directory: tools/pkgtool
+
+  nginx:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: UNPINNED_LOG="$PWD/dist/unpinned-nginx.txt" recipes/nginx.sh stage/nginx
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name nginx --version "$(cat stage/nginx.version)" --license BSD-2-Clause \
+            --dir stage/nginx --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-nginx
+          path: stage/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-nginx
+          path: dist/
+
+  composer:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: recipes/composer.sh stage/composer
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name composer --version "$(cat stage/composer.version)" --license MIT \
+            --dir stage/composer --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-composer
+          path: stage/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-composer
+          path: dist/
+
+  php:
+    needs: [nginx, composer]
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+    steps:
+      - uses: actions/checkout@v4
+      # PHP and Composer here only run static-php-cli; they are not packaged.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer
+          extensions: tokenizer, mbstring, zlib, xml, dom, curl
+          coverage: none
+      - name: Build tools (runner only)
+        run: |
+          brew install autoconf automake libtool bison re2c pkgconf cmake gperf
+          echo "BUILD_TOOLS_PATH=$(brew --prefix bison)/bin:$(dirname "$(which php)"):$(brew --prefix)/bin" >> "$GITHUB_ENV"
+      - name: Build PHP ${{ matrix.php }}
+        run: recipes/php.sh "${{ matrix.php }}" "stage/php-${{ matrix.php }}"
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: stage-*
+          path: stage
+          merge-multiple: true
+      - name: Smoke test with nginx and Composer
+        run: |
+          chmod +x stage/nginx/bin/nginx
+          tests/smoke.sh stage/nginx "stage/php-${{ matrix.php }}" stage/composer "${{ matrix.php }}"
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name "php-${{ matrix.php }}" --version "$(cat "stage/php-${{ matrix.php }}.version")" \
+            --license PHP-3.01 --dir "stage/php-${{ matrix.php }}" --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-php-${{ matrix.php }}
+          path: dist/
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    needs: [pkgtool, php]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: publish
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      STACKMUR_SIGNING_KEY: ${{ secrets.STACKMUR_SIGNING_KEY }}
+      STACKMUR_PUBLIC_KEY: ${{ vars.STACKMUR_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+      - name: Refuse unpinned sources
+        run: |
+          if cat dist/unpinned-*.txt 2>/dev/null | grep .; then
+            echo "pin these in sources.lock before publishing" >&2; exit 1
+          fi
+          [ -n "$STACKMUR_SIGNING_KEY" ] && [ -n "$STACKMUR_PUBLIC_KEY" ] \
+            || { echo "STACKMUR_SIGNING_KEY secret / STACKMUR_PUBLIC_KEY variable missing" >&2; exit 1; }
+      - name: Previous manifest
+        run: |
+          mkdir -p previous
+          if gh release download --repo "$GITHUB_REPOSITORY" --dir previous \
+               --pattern manifest.json --pattern manifest.json.minisig; then
+            echo "PREVIOUS=--previous previous/manifest.json --previous-signature previous/manifest.json.minisig" >> "$GITHUB_ENV"
+          fi
+      - name: Sign manifest
+        run: |
+          serial="$(date -u +%s)"
+          echo "TAG=r$serial" >> "$GITHUB_ENV"
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- manifest \
+            --fragments dist --serial "$serial" --out signed $PREVIOUS \
+            --base-url "https://github.com/$GITHUB_REPOSITORY/releases/download/r$serial" \
+            --expect-public-key "$STACKMUR_PUBLIC_KEY"
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- verify \
+            --manifest signed/manifest.json --signature signed/manifest.json.minisig \
+            --public-key "$STACKMUR_PUBLIC_KEY"
+      - name: Release
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Packages $TAG" --notes "Signed manifest serial ${TAG#r}." --latest \
+            dist/*.tar.zst signed/manifest.json signed/manifest.json.minisig
