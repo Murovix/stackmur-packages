@@ -46,6 +46,15 @@ download-options:
   retry: 3
   prefer-pre-built: false
 YML
+# PHP 8.1's libbcmath still has K&R function definitions, which the
+# runner's clang rejects under its C23 default. Same flags as spc's env.ini
+# for macOS, plus gnu17; newer PHP versions do not need it.
+if [ "$MINOR" = 8.1 ]; then
+    cat >> craft.yml <<'YML'
+extra-env:
+  SPC_CMD_VAR_PHP_MAKE_EXTRA_CFLAGS: "-g -fstack-protector-strong -fpic -fpie -Werror=unknown-warning-option --target=arm64-apple-darwin -Os -std=gnu17"
+YML
+fi
 # spc looks for pkg-config only in its own buildroot/bin or pkgroot; its
 # `doctor` would fetch a pre-built one. Use the runner's (a build tool, not
 # packaged: only php and php-fpm are copied out of buildroot/bin).
