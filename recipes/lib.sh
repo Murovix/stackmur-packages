@@ -17,7 +17,7 @@ die() { echo "error: $*" >&2; exit 1; }
 fetch() {
     local url="$1" dir="$2" name="${1##*/}"
     mkdir -p "$dir"
-    [ -f "$dir/$name" ] || curl -fsSL --retry 3 --proto '=https' -o "$dir/$name" "$url"
+    [ -f "$dir/$name" ] || curl -fsSL --retry 6 --retry-delay 5 --retry-all-errors --proto '=https' -o "$dir/$name" "$url"
     local actual expected
     actual="$(shasum -a 256 "$dir/$name" | cut -d' ' -f1)"
     expected="$(awk -v n="$name" '$1 == n { print $2 }' "$LOCK" 2>/dev/null || true)"
