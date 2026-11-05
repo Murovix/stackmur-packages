@@ -17,11 +17,25 @@ die() { echo "error: $*" >&2; exit 1; }
 fetch() {
     local url="$1" dir="$2" name="${1##*/}"
     mkdir -p "$dir"
-    [ -f "$dir/$name" ] || curl -fsSL --retry 3 --proto '=https' -o "$dir/$name" "$url"
+    # GitHub's release CDN has answered 504 for a minute or more at a time;
+    # the pinned hash below makes every retry safe.
+    local round
+    for round in 1 2 3 4 5; do
+        [ -f "$dir/$name" ] && break
+        if curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors --proto '=https' \
+            -o "$dir/$name.part" "$url"; then
+            mv "$dir/$name.part" "$dir/$name"
+        elif [ "$round" -lt 5 ]; then
+            echo "download of $name failed, retrying in 30 s" >&2
+            sleep 30
+        fi
+    done
+    [ -f "$dir/$name" ] || die "cannot download $url"
     local actual expected
     actual="$(shasum -a 256 "$dir/$name" | cut -d' ' -f1)"
     expected="$(awk -v n="$name" '$1 == n { print $2 }' "$LOCK" 2>/dev/null || true)"
     if [ -z "$expected" ]; then
+        [ -z "${UNPINNED_LOG:-}" ] || mkdir -p "$(dirname "$UNPINNED_LOG")"
         echo "UNPINNED $name $actual" | tee -a "${UNPINNED_LOG:-/dev/null}" >&2
         [ "${ALLOW_UNPINNED:-0}" = 1 ] || die "$name is not pinned in sources.lock"
     elif [ "$actual" != "$expected" ]; then

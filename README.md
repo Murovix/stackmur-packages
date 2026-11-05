@@ -31,7 +31,9 @@ Stackmur reads `https://github.com/Murovix/stackmur-packages/releases/latest/dow
 
 - Secret key: repository secret `STACKMUR_SIGNING_KEY`. It never appears in the repository,
   logs or chat. An offline backup is kept by the owner.
-- Public key: repository variable `STACKMUR_PUBLIC_KEY`, and compiled into Stackmur.
+- Public key: repository variable `STACKMUR_PUBLIC_KEY`, and compiled into Stackmur:
+  `RWRA9Q6il1uPbLwNIUEAUvX2vzEYzA88Tui8jAIHsgr4pFS06n1O9aia`
+  Check a downloaded manifest with `pkgtool verify --public-key <that key> …`.
 - Create one (once, on the owner's Mac):
   `cargo run --release --manifest-path tools/pkgtool/Cargo.toml -- keygen --secret-key ~/stackmur-signing.key`
 
