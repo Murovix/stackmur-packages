@@ -8,7 +8,7 @@ source "$(dirname "$0")/lib.sh"
 # static-php-cli is run from a pinned tag of its source, not a prebuilt binary:
 # the binaries have no published checksums (docs/build.md).
 SPC_TAG=2.8.5
-EXTENSIONS="bcmath,ctype,curl,dom,exif,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,posix,redis,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
+EXTENSIONS="bcmath,ctype,curl,dom,exif,fileinfo,filter,gd,iconv,intl,mbregex,mbstring,mysqli,mysqlnd,opcache,openssl,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,posix,redis,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
 
 MINOR="$1"
 [[ "$MINOR" =~ ^8\.[1-5]$ ]] || die "unsupported PHP version $MINOR (MVP: 8.1-8.5)"

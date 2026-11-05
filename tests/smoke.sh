@@ -75,6 +75,8 @@ $need = ['bcmath','ctype','curl','dom','exif','fileinfo','filter','gd','iconv','
 $missing = array_values(array_filter($need, fn ($e) => !extension_loaded($e)));
 $drivers = PDO::getAvailableDrivers();
 foreach (['mysql', 'sqlite'] as $d) { if (!in_array($d, $drivers, true)) $missing[] = "pdo:$d"; }
+// Laravel's Str::of()->explode() and others need mbstring's regex functions.
+foreach (['mb_split', 'mb_ereg_replace'] as $f) { if (!function_exists($f)) $missing[] = "function:$f"; }
 $db = new PDO('sqlite::memory:');
 $db->exec('create table t (v text)');
 $db->exec("insert into t values ('ok')");
