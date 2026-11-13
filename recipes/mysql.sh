@@ -12,7 +12,7 @@ SERIES="$1"
 case "$SERIES" in
     8.4) VERSION=8.4.13; TARBALL="mysql-$VERSION.tar.gz" ;;
     # 8.0 needs Boost 1.77; the -boost tarball carries it.
-    8.0) VERSION="${MYSQL80_VERSION:?set MYSQL80_VERSION}"; TARBALL="mysql-boost-$VERSION.tar.gz" ;;
+    8.0) VERSION=8.0.46; TARBALL="mysql-boost-$VERSION.tar.gz" ;;
     *) die "unsupported MySQL series $SERIES (8.0 or 8.4)" ;;
 esac
 OPENSSL=3.5.9

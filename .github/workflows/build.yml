@@ -129,9 +129,40 @@ jobs:
           name: dist-php-${{ matrix.php }}
           path: dist/
 
+  mysql:
+    runs-on: macos-15
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        series: ["8.0", "8.4"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools (runner only)
+        run: |
+          brew install cmake bison pkgconf
+          echo "BUILD_TOOLS_PATH=$(brew --prefix bison)/bin:$(brew --prefix)/bin" >> "$GITHUB_ENV"
+      - name: Build MySQL ${{ matrix.series }}
+        run: UNPINNED_LOG="$PWD/dist/unpinned-mysql-${{ matrix.series }}.txt" recipes/mysql.sh "${{ matrix.series }}" "stage/mysql-${{ matrix.series }}"
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - name: Smoke test
+        run: tests/mysql-smoke.sh "stage/mysql-${{ matrix.series }}" "${{ matrix.series }}"
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name "mysql-${{ matrix.series }}" --version "$(cat "stage/mysql-${{ matrix.series }}.version")" \
+            --license GPL-2.0-only --dir "stage/mysql-${{ matrix.series }}" --out dist
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-mysql-${{ matrix.series }}
+          path: dist/
+
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
-    needs: [pkgtool, php]
+    needs: [pkgtool, php, mysql]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
