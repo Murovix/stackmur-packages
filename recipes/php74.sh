@@ -122,6 +122,7 @@ LIBXML_CFLAGS="-I$SDK/usr/include/libxml2" LIBXML_LIBS="-lxml2" \
 SQLITE_CFLAGS=" " SQLITE_LIBS="-lsqlite3" \
 CURL_CFLAGS=" " CURL_LIBS="-lcurl" \
 ZLIB_CFLAGS=" " ZLIB_LIBS="-lz" \
+ac_cv_prog_cc_c23=no \
 ./configure \
     --prefix=/var/empty/stackmur-php74 \
     --with-config-file-path=/var/empty \
@@ -138,7 +139,8 @@ ZLIB_CFLAGS=" " ZLIB_LIBS="-lz" \
     --enable-tokenizer --enable-xml --enable-xmlreader --enable-xmlwriter \
     --enable-opcache --without-pcre-jit \
     --enable-redis --disable-redis-igbinary --disable-redis-lzf --disable-redis-zstd \
-    --without-pear
+    --without-pear \
+    || { grep -n -B2 -A40 'GD build test\|checking for working gdImage\|conftest' config.log | tail -n 150; exit 1; }
 make -j"$JOBS" >/dev/null
 endstep
 
