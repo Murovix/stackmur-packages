@@ -54,7 +54,7 @@ cmake -S "$WORK/src/mysql-$VERSION" -B "$BUILD" \
     -DWITH_AUTHENTICATION_LDAP=OFF -DWITH_AUTHENTICATION_KERBEROS=OFF \
     -DWITH_AUTHENTICATION_FIDO=OFF -DWITH_AUTHENTICATION_CLIENT_PLUGINS=OFF \
     -DINSTALL_MYSQLTESTDIR= \
-    "${boost[@]}"
+    ${boost[@]+"${boost[@]}"}
 cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)"
 rm -rf "$WORK/install"
 DESTDIR="$WORK/install" cmake --install "$BUILD" --strip
