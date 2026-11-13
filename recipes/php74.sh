@@ -93,6 +93,14 @@ cmake_lib "libzip-$LIBZIP.tar.gz" libzip.a -DENABLE_COMMONCRYPTO=OFF -DENABLE_GN
     -DBUILD_REGRESS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DOC=OFF -DBUILD_OSSFUZZ=OFF
 # Only static archives in the prefix: the PHP link must not pick a dylib.
 find "$P/lib" -name '*.dylib' -delete
+# libpng's and libzip's .pc files require zlib; macOS's has no .pc file.
+cat > "$P/lib/pkgconfig/zlib.pc" <<PC
+Name: zlib
+Description: zlib from macOS
+Version: 1.2.12
+Cflags:
+Libs: -lz
+PC
 
 PHPSRC="$(dir "php-$PHP.tar.xz")"
 if [ ! -d "$PHPSRC/ext/redis" ]; then
