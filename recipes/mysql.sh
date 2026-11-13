@@ -4,7 +4,7 @@
 # (probe-mysql, 2026-11-13: 8.4.13 has minos 14.0), so they are not repacked.
 # OpenSSL 3 is linked statically; X Protocol, Router, NDB, LDAP/Kerberos/FIDO
 # authentication and unit tests are left out (not needed for local sites).
-# Needs cmake and bison on PATH (CI runner only, never on a user's Mac).
+# Needs cmake, ninja and bison on PATH (CI runner only, never on a user's Mac).
 # Usage: recipes/mysql.sh SERIES STAGE_DIR
 source "$(dirname "$0")/lib.sh"
 
@@ -41,7 +41,7 @@ boost=()
 [ "$SERIES" = 8.0 ] && boost=(-DWITH_BOOST="$WORK/src/mysql-$VERSION/boost")
 # The compiled-in prefix is never used: Stackmur always passes --basedir,
 # --datadir, --plugin-dir and --lc-messages-dir.
-cmake -S "$WORK/src/mysql-$VERSION" -B "$BUILD" \
+cmake -G Ninja -S "$WORK/src/mysql-$VERSION" -B "$BUILD" \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_INSTALL_PREFIX=/var/empty/stackmur-mysql \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
