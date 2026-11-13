@@ -111,7 +111,9 @@ fi
 step "PHP $PHP"
 cd "$PHPSRC"
 # PHP 7.4 predates clang 16, which made these warnings errors by default.
-OLD="-Wno-error=incompatible-function-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=implicit-int"
+# -fno-strict-return: configure tests such as GD's have non-void functions
+# without return, which Apple clang turns into a trap at -O2 (CI 2026-11-13).
+OLD="-fno-strict-return -Wno-error=incompatible-function-pointer-types -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=implicit-int"
 # Compiled-in ini paths point at /var/empty (root-owned, always empty), as for
 # 8.x: a foreign php.ini is never read; Stackmur passes -c.
 # macOS ships libxml2, sqlite3, curl and zlib without .pc files.
