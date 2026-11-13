@@ -9,6 +9,8 @@ Stackmur, and only archives whose SHA-256 and size match that manifest.
 | --- | --- | --- |
 | `php-8.1` … `php-8.5` | [static-php-cli](https://github.com/crazywhalecc/static-php-cli) from a pinned tag, CLI + FPM | `recipes/php.sh` |
 | `nginx` | nginx stable, PCRE2 and OpenSSL 3 linked statically | `recipes/nginx.sh` |
+| `php-7.4` | own pipeline (static-php-cli has no 7.4): PHP 7.4.33 with a static private OpenSSL 1.1.1w, ICU 72 and the MVP extension set; OPcache as a shared zend_extension. EOL: legacy projects only | `recipes/php74.sh` |
+| `mysql-8.0`, `mysql-8.4` | MySQL Community Server built from Oracle's source for macOS 13 (Oracle's macOS tarballs need 14+); private OpenSSL 3; no X Protocol, Router, NDB or Group Replication. 8.0 is EOL | `recipes/mysql.sh` |
 | `composer` | official `composer.phar`, checked against getcomposer.org's SHA-256 | `recipes/composer.sh` |
 
 Targets: macOS 13+, Apple Silicon (arm64) only.
