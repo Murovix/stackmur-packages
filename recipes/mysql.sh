@@ -78,6 +78,9 @@ for l in "$I"/lib/libssl.3.dylib "$I"/lib/libcrypto.3.dylib; do
     [ -f "$l" ] && cp "$l" "$STAGE/lib/"
 done
 rm -rf "$STAGE/lib/plugin/debug"
+# Group Replication (needs libprotobuf-lite from lib/) has no use on a local
+# single server.
+rm -f "$STAGE/lib/plugin/group_replication.so"
 cp -R "$I/share/." "$STAGE/share/"
 cp "$WORK/src/mysql-$VERSION/LICENSE" "$STAGE/share/licenses/mysql.txt"
 cp "$WORK/src/openssl-$OPENSSL/LICENSE.txt" "$STAGE/share/licenses/openssl.txt"
