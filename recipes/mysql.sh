@@ -25,11 +25,16 @@ fetch "https://cdn.mysql.com/Downloads/MySQL-$SERIES/$TARBALL" "$WORK/src"
 fetch "https://github.com/openssl/openssl/releases/download/openssl-$OPENSSL/openssl-$OPENSSL.tar.gz" "$WORK/src"
 for t in "$WORK"/src/*.tar.gz; do tar -xzf "$t" -C "$WORK/src"; done
 
-# Static OpenSSL in a private prefix: no dylib next to mysqld to keep in sync.
+# OpenSSL in a private prefix. 8.0 links it statically. 8.4's cmake on macOS
+# only accepts shared OpenSSL (static: "OpenSSL::SSL-NOTFOUND", CI
+# 2026-11-13) and installs the dylibs into lib/ with @loader_path names, as
+# Oracle's own tarball does; they ship inside the package.
 OSSL="$WORK/openssl"
+shared=no-shared
+[ "$SERIES" = 8.4 ] && shared=shared
 if [ ! -f "$OSSL/lib/libssl.a" ]; then
     (cd "$WORK/src/openssl-$OPENSSL" \
-        && ./Configure darwin64-arm64-cc no-shared no-tests no-docs \
+        && ./Configure darwin64-arm64-cc "$shared" no-tests no-docs \
             --prefix="$OSSL" --libdir=lib -mmacosx-version-min=13.0 \
         && make -j"$(sysctl -n hw.ncpu)" >/dev/null \
         && make install_sw >/dev/null)
@@ -68,6 +73,11 @@ for b in mysqld mysql mysqladmin mysqldump mysqlcheck mysqlimport mysqlshow \
     cp "$I/bin/$b" "$STAGE/bin/$b"
 done
 cp -R "$I/lib/plugin" "$STAGE/lib/plugin"
+# Real files only (no symlinks): the bundled OpenSSL of 8.4.
+for l in "$I"/lib/*.dylib; do
+    case "${l##*/}" in libmysqlclient*) continue ;; esac
+    [ -f "$l" ] && [ ! -L "$l" ] && cp "$l" "$STAGE/lib/"
+done
 rm -rf "$STAGE/lib/plugin/debug"
 cp -R "$I/share/." "$STAGE/share/"
 cp "$WORK/src/mysql-$VERSION/LICENSE" "$STAGE/share/licenses/mysql.txt"
@@ -78,7 +88,10 @@ cp "$WORK/src/openssl-$OPENSSL/LICENSE.txt" "$STAGE/share/licenses/openssl.txt"
 for l in "$I"/lib/libprotobuf-lite.*.dylib; do
     [ -f "$l" ] && [ ! -L "$l" ] && cp "$l" "$STAGE/bin/"
 done
-for b in "$STAGE"/bin/*; do check_binary "$b" "$STAGE"; done
+for b in "$STAGE"/bin/* "$STAGE"/lib/*.dylib; do
+    [ -f "$b" ] && check_binary "$b" "$STAGE"
+done
+otool -L "$STAGE/bin/mysqld"
 for p in "$STAGE"/lib/plugin/*.so; do check_binary "$p" "$STAGE" >/dev/null; done
 vtool -show-build "$STAGE/bin/mysqld" | grep -E 'minos|sdk'
 vtool -show-build "$STAGE/bin/mysqld" | grep -q 'minos 13.0' || die "mysqld does not target macOS 13.0"
