@@ -4,9 +4,6 @@ name: build
 # pull requests and by hand; publishing only by hand from main.
 on:
   pull_request:
-    # PHP 7.4 iterates in its own workflow (php74.yml) so its pushes do not
-    # cancel the long MySQL builds here.
-    paths-ignore: [recipes/php74.sh, .github/workflows/php74.yml]
   workflow_dispatch:
     inputs:
       publish:
@@ -19,7 +16,9 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # A running build finishes even when newer commits arrive (MySQL takes 45
+  # minutes; PHP 7.4 fixes land often). Only the newest pending run waits.
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
