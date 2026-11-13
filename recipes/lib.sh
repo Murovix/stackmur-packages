@@ -43,14 +43,26 @@ fetch() {
     fi
 }
 
-# check_binary FILE: arm64 only, no dylibs outside the OS.
+# check_binary FILE [PACKAGE_ROOT]: arm64 only, no dylibs outside the OS.
+# With PACKAGE_ROOT, @loader_path/ references are allowed when they resolve
+# to a file inside that package (MySQL's own libprotobuf-lite).
 check_binary() {
-    local bin="$1"
+    local bin="$1" root="${2:-}"
     file "$bin"
     lipo -archs "$bin" | grep -qx arm64 || die "$bin is not arm64-only"
-    local foreign
+    local foreign dep target
     foreign="$(otool -L "$bin" | tail -n +2 | awk '{print $1}' | grep -vE '^/usr/lib/|^/System/Library/' || true)"
-    [ -z "$foreign" ] || die "$bin links outside the OS: $foreign"
+    for dep in $foreign; do
+        # A dylib lists its own install name first; that is not a dependency.
+        [ "${dep##*/}" = "${bin##*/}" ] && continue
+        if [ -n "$root" ] && [[ "$dep" == @loader_path/* ]]; then
+            target="$(cd "$(dirname "$bin")" && cd "$(dirname "${dep#@loader_path/}")" 2>/dev/null && pwd -P)/${dep##*/}"
+            case "$target" in
+                "$(cd "$root" && pwd -P)"/*) [ -f "$target" ] && continue ;;
+            esac
+        fi
+        die "$bin links outside the OS: $dep"
+    done
     # Ad-hoc signature until the Developer ID pipeline exists (ADR 0009).
     codesign -s - -f "$bin"
     codesign -v "$bin"

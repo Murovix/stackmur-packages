@@ -73,8 +73,13 @@ cp -R "$I/share/." "$STAGE/share/"
 cp "$WORK/src/mysql-$VERSION/LICENSE" "$STAGE/share/licenses/mysql.txt"
 cp "$WORK/src/openssl-$OPENSSL/LICENSE.txt" "$STAGE/share/licenses/openssl.txt"
 
-for b in "$STAGE"/bin/*; do check_binary "$b"; done
-for p in "$STAGE"/lib/plugin/*.so; do check_binary "$p" >/dev/null; done
+# 8.0's mysqld links the bundled libprotobuf-lite through @loader_path (even
+# without X Protocol); it ships next to the binaries.
+for l in "$I"/lib/libprotobuf-lite.*.dylib; do
+    [ -f "$l" ] && [ ! -L "$l" ] && cp "$l" "$STAGE/bin/"
+done
+for b in "$STAGE"/bin/*; do check_binary "$b" "$STAGE"; done
+for p in "$STAGE"/lib/plugin/*.so; do check_binary "$p" "$STAGE" >/dev/null; done
 vtool -show-build "$STAGE/bin/mysqld" | grep -E 'minos|sdk'
 vtool -show-build "$STAGE/bin/mysqld" | grep -q 'minos 13.0' || die "mysqld does not target macOS 13.0"
 "$STAGE/bin/mysqld" --version
