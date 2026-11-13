@@ -74,14 +74,34 @@ for b in mysqld mysql mysqladmin mysqldump mysqlcheck mysqlimport mysqlshow \
 done
 cp -R "$I/lib/plugin" "$STAGE/lib/plugin"
 # Real files only (no symlinks): the bundled OpenSSL of 8.4.
-for l in "$I"/lib/*.dylib; do
-    case "${l##*/}" in libmysqlclient*) continue ;; esac
-    [ -f "$l" ] && [ ! -L "$l" ] && cp "$l" "$STAGE/lib/"
+for l in "$I"/lib/libssl.3.dylib "$I"/lib/libcrypto.3.dylib; do
+    [ -f "$l" ] && cp "$l" "$STAGE/lib/"
 done
 rm -rf "$STAGE/lib/plugin/debug"
 cp -R "$I/share/." "$STAGE/share/"
 cp "$WORK/src/mysql-$VERSION/LICENSE" "$STAGE/share/licenses/mysql.txt"
 cp "$WORK/src/openssl-$OPENSSL/LICENSE.txt" "$STAGE/share/licenses/openssl.txt"
+
+# MySQL copies the private OpenSSL dylibs into lib/ but leaves references to
+# the build prefix (CI 2026-11-13); point every Mach-O at the copies.
+relink_openssl() {
+    local f="$1" dir rel lib
+    dir="$(cd "$(dirname "$f")" && pwd -P)"
+    rel="$(/usr/bin/python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$STAGE/lib" "$dir")"
+    for lib in libssl.3.dylib libcrypto.3.dylib; do
+        if otool -L "$f" | grep -q "$OSSL/lib/$lib"; then
+            install_name_tool -change "$OSSL/lib/$lib" "@loader_path/$rel/$lib" "$f"
+        fi
+    done
+    case "${f##*/}" in
+        libssl.3.dylib|libcrypto.3.dylib) install_name_tool -id "@loader_path/${f##*/}" "$f" ;;
+    esac
+}
+if [ -f "$STAGE/lib/libssl.3.dylib" ]; then
+    for f in "$STAGE"/bin/* "$STAGE"/lib/*.dylib "$STAGE"/lib/plugin/*.so; do
+        [ -f "$f" ] && file "$f" | grep -q Mach-O && relink_openssl "$f"
+    done
+fi
 
 # 8.0's mysqld links the bundled libprotobuf-lite through @loader_path (even
 # without X Protocol); it ships next to the binaries.
