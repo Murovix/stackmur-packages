@@ -105,11 +105,12 @@ PC
 PHPSRC="$(dir "php-$PHP.tar.xz")"
 if [ ! -d "$PHPSRC/ext/redis" ]; then
     cp -R "$(dir "redis-$REDIS.tgz")" "$PHPSRC/ext/redis"
-    # GD's link test defines `char foobar () {}`; Apple clang compiles the
-    # missing return into a trap, so the test binary dies with SIGILL even
-    # with -fno-strict-return (CI 2026-11-13).
-    sed -i '' 's/\[char foobar () {}\]/[char foobar () { return 0; }]/' "$PHPSRC/ext/gd/config.m4"
-    grep -q 'char foobar () { return 0; }' "$PHPSRC/ext/gd/config.m4" || die "GD config.m4 patch did not apply"
+    # GD's configure-time run test dies with SIGILL on the runner (with or
+    # without a return value in its stub, CI 2026-11-13); the cause is not in
+    # GD, so the test is dropped here and the real php binary is exercised by
+    # tests/smoke.sh (gd is one of the required extensions there).
+    perl -0pi -e 's/PHP_TEST_BUILD\(foobar, \[\], \[\n.*?\n\s*\], \[ \$GD_SHARED_LIBADD \], \[char foobar \(\) \{\}\]\)//s' "$PHPSRC/ext/gd/config.m4"
+    ! grep -q 'PHP_TEST_BUILD(foobar' "$PHPSRC/ext/gd/config.m4" || die "GD config.m4 patch did not apply"
     (cd "$PHPSRC" && ./buildconf --force)
 fi
 
