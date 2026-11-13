@@ -4,6 +4,9 @@ name: build
 # pull requests and by hand; publishing only by hand from main.
 on:
   pull_request:
+    # PHP 7.4 iterates in its own workflow (php74.yml) so its pushes do not
+    # cancel the long MySQL builds here.
+    paths-ignore: [recipes/php74.sh, .github/workflows/php74.yml]
   workflow_dispatch:
     inputs:
       publish:
@@ -130,6 +133,7 @@ jobs:
           path: dist/
 
   php74:
+    if: github.event_name != 'pull_request'
     needs: [nginx, composer]
     runs-on: macos-15
     timeout-minutes: 120
