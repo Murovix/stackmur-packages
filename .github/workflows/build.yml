@@ -16,7 +16,9 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # A running build finishes even when newer commits arrive (MySQL takes 45
+  # minutes; PHP 7.4 fixes land often). Only the newest pending run waits.
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -129,9 +131,76 @@ jobs:
           name: dist-php-${{ matrix.php }}
           path: dist/
 
+  php74:
+    if: github.event_name != 'pull_request'
+    needs: [nginx, composer]
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools (runner only)
+        run: |
+          brew install autoconf automake libtool bison re2c pkgconf cmake
+          echo "BUILD_TOOLS_PATH=$(brew --prefix bison)/bin:$(brew --prefix)/bin" >> "$GITHUB_ENV"
+      - name: Build PHP 7.4
+        run: UNPINNED_LOG="$PWD/dist/unpinned-php-7.4.txt" recipes/php74.sh stage/php-7.4
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: stage-*
+          path: stage
+          merge-multiple: true
+      - name: Smoke test with nginx and Composer
+        run: |
+          chmod +x stage/nginx/bin/nginx
+          SMOKE_PHP_INI_EXTRA="zend_extension=$PWD/stage/php-7.4/lib/extensions/opcache.so" SMOKE_PSR_LOG="^1" \
+            tests/smoke.sh stage/nginx stage/php-7.4 stage/composer 7.4
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name php-7.4 --version "$(cat stage/php-7.4.version)" \
+            --license PHP-3.01 --dir stage/php-7.4 --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-php-7.4
+          path: dist/
+
+  mysql:
+    runs-on: macos-15
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        series: ["8.0", "8.4"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools (runner only)
+        run: |
+          brew install cmake ninja bison pkgconf
+          echo "BUILD_TOOLS_PATH=$(brew --prefix bison)/bin:$(brew --prefix)/bin" >> "$GITHUB_ENV"
+      - name: Build MySQL ${{ matrix.series }}
+        run: UNPINNED_LOG="$PWD/dist/unpinned-mysql-${{ matrix.series }}.txt" recipes/mysql.sh "${{ matrix.series }}" "stage/mysql-${{ matrix.series }}"
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - name: Smoke test
+        run: tests/mysql-smoke.sh "stage/mysql-${{ matrix.series }}" "${{ matrix.series }}"
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name "mysql-${{ matrix.series }}" --version "$(cat "stage/mysql-${{ matrix.series }}.version")" \
+            --license GPL-2.0-only --dir "stage/mysql-${{ matrix.series }}" --out dist
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-mysql-${{ matrix.series }}
+          path: dist/
+
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
-    needs: [pkgtool, php]
+    needs: [pkgtool, php, php74, mysql]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

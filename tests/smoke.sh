@@ -28,6 +28,8 @@ memory_limit = 256M
 opcache.enable = 1
 opcache.enable_cli = 0
 INI
+# PHP 7.4 loads OPcache as a shared zend_extension.
+[ -z "${SMOKE_PHP_INI_EXTRA:-}" ] || printf '%s\n' "$SMOKE_PHP_INI_EXTRA" >> "$T/php.ini"
 cat > "$T/php-fpm.conf" <<CONF
 [global]
 pid = $T/php-fpm.pid
@@ -134,7 +136,7 @@ mkdir -p "$T/project"
 cd "$T/project"
 php_cli=("$PHP_DIR/bin/php" -c "$T/php.ini")
 "${php_cli[@]}" "$COMPOSER" --version
-COMPOSER_HOME="$T/composer-home" "${php_cli[@]}" "$COMPOSER" require --no-interaction --no-progress psr/log:^3
+COMPOSER_HOME="$T/composer-home" "${php_cli[@]}" "$COMPOSER" require --no-interaction --no-progress "psr/log:${SMOKE_PSR_LOG:-^3}"
 "${php_cli[@]}" -r 'require "vendor/autoload.php"; exit(interface_exists("Psr\\Log\\LoggerInterface") ? 0 : 1);' \
     || die "composer autoload failed"
 echo "smoke ok: PHP $MINOR with nginx and Composer"

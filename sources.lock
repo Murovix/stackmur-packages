@@ -4,3 +4,21 @@
 openssl-3.5.9.tar.gz 603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a
 pcre2-10.49.tar.gz 929f0b20e62879252a15886b06c89f1edef61a363cbd5826fb041080a5e557ae
 nginx-1.30.6.tar.gz 3cf46f5ed7504d460125866b7bea99fb357f31d887e2e63b35503310e9b8b6c8
+# MySQL (recipes/mysql.sh). Hashed on the macOS CI runner 2026-11-13; the
+# cloud cannot reach cdn.mysql.com to cross-check: owner compares with the
+# MD5 Oracle publishes on dev.mysql.com before the first publish.
+mysql-8.4.13.tar.gz f6ddc7f7fb6462bab8b533b13c06af3fff57fa9ca12259b81ab13cd9930b9d58
+mysql-boost-8.0.46.tar.gz dff4332ee7f8f37fc0516c66763600a22a81c8192c743c477b6484206e314f2f
+# PHP 7.4 (recipes/php74.sh). php-7.4.33 and openssl-1.1.1w match the hashes
+# published by php.net and openssl.org; libzip and libjpeg-turbo re-downloaded
+# from the cloud with the same hash; the rest hashed on the CI runner.
+php-7.4.33.tar.xz 924846abf93bc613815c55dd3f5809377813ac62a9ec4eb3778675b82a27b927
+openssl-1.1.1w.tar.gz cf3098950cb4d853ad95c0841f1f9c6d3dc102dccfcacd521d93925208b76ac8
+icu4c-72_1-src.tgz a2d2d38217092a7ed56635e34467f92f976b370e20182ad325edea6681a71d68
+onig-6.9.9.tar.gz 60162bd3b9fc6f4886d4c7a07925ffd374167732f55dce8c491bfd9cd818a6cf
+libzip-1.10.1.tar.gz 9669ae5dfe3ac5b3897536dc8466a874c8cf2c0e3b1fdd08d75b273884299363
+v1.6.44.tar.gz 0ef5b633d0c65f780c4fced27ff832998e71478c13b45dfb6e94f23a82f64f7c
+libjpeg-turbo-3.0.4.tar.gz 99130559e7d62e8d695f2c0eaeef912c5828d5b84a0537dcb24c9678c9d5b76b
+freetype-2.13.3.tar.xz 0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289
+libsodium-1.0.20.tar.gz ebb65ef6ca439333c2bb41a0c1990587288da07f6c7fd07cb3a18cc18d30ce19
+redis-5.3.7.tgz b958166ccda4f40bd17c6998f9e2239021ae644467cd8ad5c15def420aad65b0

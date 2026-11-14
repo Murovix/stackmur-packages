@@ -1,0 +1,99 @@
+name: php74
+
+# PHP 7.4 on pull requests that change its recipe or the smoke test; the
+# build workflow builds it again for publishing.
+on:
+  pull_request:
+    paths: [recipes/php74.sh, recipes/lib.sh, tests/smoke.sh, .github/workflows/php74.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: php74-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  ALLOW_UNPINNED: "1"
+
+jobs:
+  nginx:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: UNPINNED_LOG="$PWD/dist/unpinned-nginx.txt" recipes/nginx.sh stage/nginx
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name nginx --version "$(cat stage/nginx.version)" --license BSD-2-Clause \
+            --dir stage/nginx --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-nginx
+          path: stage/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-nginx
+          path: dist/
+
+  composer:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: recipes/composer.sh stage/composer
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name composer --version "$(cat stage/composer.version)" --license MIT \
+            --dir stage/composer --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-composer
+          path: stage/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-composer
+          path: dist/
+
+  php74:
+    needs: [nginx, composer]
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools (runner only)
+        run: |
+          brew install autoconf automake libtool bison re2c pkgconf cmake
+          echo "BUILD_TOOLS_PATH=$(brew --prefix bison)/bin:$(brew --prefix)/bin" >> "$GITHUB_ENV"
+      - name: Build PHP 7.4
+        run: UNPINNED_LOG="$PWD/dist/unpinned-php-7.4.txt" recipes/php74.sh stage/php-7.4
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: stage-*
+          path: stage
+          merge-multiple: true
+      - name: Smoke test with nginx and Composer
+        run: |
+          chmod +x stage/nginx/bin/nginx
+          SMOKE_PHP_INI_EXTRA="zend_extension=$PWD/stage/php-7.4/lib/extensions/opcache.so" SMOKE_PSR_LOG="^1" \
+            tests/smoke.sh stage/nginx stage/php-7.4 stage/composer 7.4
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name php-7.4 --version "$(cat stage/php-7.4.version)" \
+            --license PHP-3.01 --dir stage/php-7.4 --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-php-7.4
+          path: dist/
+

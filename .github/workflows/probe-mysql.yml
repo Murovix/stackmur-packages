@@ -1,0 +1,24 @@
+name: probe-mysql
+
+# Phase 3 investigation: can Oracle's macOS arm64 MySQL tarballs be packaged?
+# Runs only when the probe changes or by hand; it builds and publishes nothing.
+on:
+  pull_request:
+    paths: [probes/mysql.sh, .github/workflows/probe-mysql.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        series: ["8.0", "8.4"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: probes/mysql.sh "${{ matrix.series }}"
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
