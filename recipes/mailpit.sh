@@ -35,6 +35,6 @@ echo "mailpit minos $minos"
 [ -n "$minos" ] || die "mailpit has no LC_BUILD_VERSION"
 [ "$(printf '%s\n13.0\n' "$minos" | sort -V | tail -n1)" = 13.0 ] || die "mailpit needs macOS $minos"
 check_binary "$STAGE/bin/mailpit"
-"$STAGE/bin/mailpit" version
-"$STAGE/bin/mailpit" version | grep -q "v$VERSION" || die "mailpit is not $VERSION"
+"$STAGE/bin/mailpit" version --no-release-check
+"$STAGE/bin/mailpit" version --no-release-check | grep -q "v$VERSION" || die "mailpit is not $VERSION"
 echo "$VERSION" > "$STAGE.version"

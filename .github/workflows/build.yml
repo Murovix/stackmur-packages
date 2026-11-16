@@ -1,7 +1,8 @@
 name: build
 
-# macOS minutes are expensive on private repositories, so full builds run on
-# pull requests and by hand; publishing only by hand from main.
+# Full builds run on pull requests and by hand; publishing only by hand from
+# main. By hand, `only` limits the build to the packages that changed: the
+# publish job merges the previous manifest, so the others stay installable.
 on:
   pull_request:
   workflow_dispatch:
@@ -10,15 +11,31 @@ on:
         description: "Sign the manifest and publish a release"
         type: boolean
         default: false
+      only:
+        description: >-
+          Packages to build, comma-separated (nginx, composer, php, php74, mysql,
+          valkey, mailpit); empty builds all. Packages left out stay in the
+          published list with their previous builds.
+        type: string
+        default: ""
+      runner:
+        description: >-
+          Where nginx, Composer, MySQL, Valkey and Mailpit are built: GitHub's
+          macos-15, or the owner's Mac (self-hosted, label stackmur-packages).
+          PHP is always built on GitHub. Signing and publishing always run on
+          GitHub, so the signing key never reaches the Mac.
+        type: choice
+        options: [github, mac]
+        default: github
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.ref }}
-  # A running build finishes even when newer commits arrive (MySQL takes 45
-  # minutes; PHP 7.4 fixes land often). Only the newest pending run waits.
-  cancel-in-progress: false
+  # Pull request checks and manual runs never wait for each other. A newer
+  # commit on a pull request cancels its older check; manual runs finish.
+  group: build-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -33,9 +50,16 @@ jobs:
         working-directory: tools/pkgtool
 
   nginx:
-    runs-on: macos-15
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'mac') && fromJSON('["self-hosted","macOS","ARM64","stackmur-packages"]') || 'macos-15' }}
     steps:
       - uses: actions/checkout@v4
+      # Owner's Mac: cargo from the Mac, nothing installed outside the runner.
+      - name: Toolchain on the owner's Mac
+        if: github.event_name == 'workflow_dispatch' && inputs.runner == 'mac'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo || { echo "cargo not found on the runner's PATH" >&2; exit 1; }
+          echo "$(dirname "$(command -v cargo)")" >> "$GITHUB_PATH"
       - name: Build
         run: UNPINNED_LOG="$PWD/dist/unpinned-nginx.txt" recipes/nginx.sh stage/nginx
         env:
@@ -51,14 +75,23 @@ jobs:
           name: stage-nginx
           path: stage/
       - uses: actions/upload-artifact@v4
+        # Always built (the PHP smoke tests use it); published only when selected.
+        if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',nginx,')
         with:
           name: dist-nginx
           path: dist/
 
   composer:
-    runs-on: macos-15
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'mac') && fromJSON('["self-hosted","macOS","ARM64","stackmur-packages"]') || 'macos-15' }}
     steps:
       - uses: actions/checkout@v4
+      # Owner's Mac: cargo from the Mac, nothing installed outside the runner.
+      - name: Toolchain on the owner's Mac
+        if: github.event_name == 'workflow_dispatch' && inputs.runner == 'mac'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo || { echo "cargo not found on the runner's PATH" >&2; exit 1; }
+          echo "$(dirname "$(command -v cargo)")" >> "$GITHUB_PATH"
       - run: recipes/composer.sh stage/composer
       - name: Pack
         run: |
@@ -71,11 +104,14 @@ jobs:
           name: stage-composer
           path: stage/
       - uses: actions/upload-artifact@v4
+        # Always built (the PHP smoke tests use it); published only when selected.
+        if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',composer,')
         with:
           name: dist-composer
           path: dist/
 
   php:
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',php,')
     needs: [nginx, composer]
     runs-on: macos-15
     strategy:
@@ -132,7 +168,7 @@ jobs:
           path: dist/
 
   php74:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (inputs.only == '' || contains(format(',{0},', inputs.only), ',php74,'))
     needs: [nginx, composer]
     runs-on: macos-15
     timeout-minutes: 120
@@ -168,7 +204,8 @@ jobs:
           path: dist/
 
   mysql:
-    runs-on: macos-15
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',mysql,')
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'mac') && fromJSON('["self-hosted","macOS","ARM64","stackmur-packages"]') || 'macos-15' }}
     timeout-minutes: 180
     strategy:
       fail-fast: false
@@ -176,7 +213,18 @@ jobs:
         series: ["8.0", "8.4"]
     steps:
       - uses: actions/checkout@v4
-      - name: Build tools (runner only)
+      # Owner's Mac: cargo from the Mac, nothing installed outside the runner.
+      - name: Toolchain on the owner's Mac
+        if: github.event_name == 'workflow_dispatch' && inputs.runner == 'mac'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo || { echo "cargo not found on the runner's PATH" >&2; exit 1; }
+          echo "$(dirname "$(command -v cargo)")" >> "$GITHUB_PATH"
+          mkdir -p dist
+          tools="$(UNPINNED_LOG="$PWD/dist/unpinned-tools-mysql-${{ matrix.series }}.txt" tools/build-tools.sh "$RUNNER_TOOL_CACHE/stackmur-build-tools")"
+          echo "BUILD_TOOLS_PATH=$tools" >> "$GITHUB_ENV"
+      - name: Build tools (GitHub runner only)
+        if: github.event_name != 'workflow_dispatch' || inputs.runner != 'mac'
         run: |
           brew install cmake ninja bison pkgconf
           echo "BUILD_TOOLS_PATH=$(brew --prefix bison)/bin:$(brew --prefix)/bin" >> "$GITHUB_ENV"
@@ -193,15 +241,25 @@ jobs:
             --name "mysql-${{ matrix.series }}" --version "$(cat "stage/mysql-${{ matrix.series }}.version")" \
             --license GPL-2.0-only --dir "stage/mysql-${{ matrix.series }}" --out dist
           ls -la dist
+          # Repeated here, at the end of the long build log, for pinning.
+          cat dist/unpinned-*.txt 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: dist-mysql-${{ matrix.series }}
           path: dist/
 
   valkey:
-    runs-on: macos-15
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',valkey,')
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'mac') && fromJSON('["self-hosted","macOS","ARM64","stackmur-packages"]') || 'macos-15' }}
     steps:
       - uses: actions/checkout@v4
+      # Owner's Mac: cargo from the Mac, nothing installed outside the runner.
+      - name: Toolchain on the owner's Mac
+        if: github.event_name == 'workflow_dispatch' && inputs.runner == 'mac'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo || { echo "cargo not found on the runner's PATH" >&2; exit 1; }
+          echo "$(dirname "$(command -v cargo)")" >> "$GITHUB_PATH"
       - name: Build
         run: UNPINNED_LOG="$PWD/dist/unpinned-valkey.txt" recipes/valkey.sh stage/valkey
         env:
@@ -221,9 +279,17 @@ jobs:
           path: dist/
 
   mailpit:
-    runs-on: macos-15
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',mailpit,')
+    runs-on: ${{ (github.event_name == 'workflow_dispatch' && inputs.runner == 'mac') && fromJSON('["self-hosted","macOS","ARM64","stackmur-packages"]') || 'macos-15' }}
     steps:
       - uses: actions/checkout@v4
+      # Owner's Mac: cargo from the Mac, nothing installed outside the runner.
+      - name: Toolchain on the owner's Mac
+        if: github.event_name == 'workflow_dispatch' && inputs.runner == 'mac'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo || { echo "cargo not found on the runner's PATH" >&2; exit 1; }
+          echo "$(dirname "$(command -v cargo)")" >> "$GITHUB_PATH"
       - name: Fetch and check
         run: UNPINNED_LOG="$PWD/dist/unpinned-mailpit.txt" recipes/mailpit.sh stage/mailpit
         env:
@@ -243,13 +309,18 @@ jobs:
           path: dist/
 
   publish:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    # Runs when every selected job passed; jobs left out are skipped.
+    if: >-
+      always() && !failure() && !cancelled() &&
+      github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
     needs: [pkgtool, php, php74, mysql, valkey, mailpit]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     concurrency:
-      group: publish
+      # Only real publishes queue behind each other; a skipped publish job
+      # (pull requests, test runs) must not hold other runs.
+      group: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) && 'publish' || format('no-publish-{0}', github.run_id) }}
       cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
