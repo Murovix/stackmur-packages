@@ -34,6 +34,27 @@ Targets: macOS 13+, Apple Silicon (arm64) only.
 
 Stackmur reads `https://github.com/Murovix/stackmur-packages/releases/latest/download/manifest.json`.
 
+## Building on the owner's Mac
+
+Run workflow → **runner: mac** builds nginx, Composer, MySQL, Valkey and Mailpit on the
+owner's Mac (self-hosted runner, label `stackmur-packages`); PHP stays on GitHub. Only
+manual runs go there: pull requests always use GitHub's runners, so code from a fork
+never runs on the Mac. Signing and publishing run on GitHub, so the signing key never
+reaches the Mac. CMake, Ninja and Bison go to the runner's own tool cache
+(`tools/build-tools.sh`), never into Homebrew; deleting the runner folder removes them.
+Their archives are checked against `sources.lock` like every source.
+
+Setting up the runner (once, separate from Stackmur's `~/actions-runner`):
+
+1. GitHub → Murovix/stackmur-packages → Settings → Actions → Runners → New self-hosted
+   runner → macOS, ARM64. Follow its download step in a new folder,
+   `~/actions-runner-packages`.
+2. `./config.sh --url https://github.com/Murovix/stackmur-packages --token <token> --labels stackmur-packages --unattended`
+   (no `svc.sh install`: the runner runs only when started).
+3. Before a Mac build: `cd ~/actions-runner-packages && ./run.sh`; stop it with Ctrl-C.
+
+Needs Xcode Command Line Tools and cargo on the Mac.
+
 ## Signing key
 
 - Secret key: repository secret `STACKMUR_SIGNING_KEY`. It never appears in the repository,
