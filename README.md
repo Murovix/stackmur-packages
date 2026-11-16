@@ -25,7 +25,10 @@ Targets: macOS 13+, Apple Silicon (arm64) only.
    no foreign `php.ini` is read, and runs Composer with the built PHP.
 2. `tools/pkgtool pack` writes a reproducible `tar.zst` (sorted entries, owner and
    times zeroed, modes 0755/0644, only files, directories and relative symlinks).
-3. Run by hand on `main` with **publish**: the job refuses sources not pinned in
+3. Run by hand on `main` with **publish**. The **only** field limits the build to the
+   packages that changed (for example `valkey,mailpit`); empty builds everything.
+   nginx and Composer are always built for the PHP smoke tests but published only
+   when selected. Then the job refuses sources not pinned in
    `sources.lock`, merges the previous manifest (older builds stay installable),
    signs a new manifest with a higher serial and creates release `r<serial>`.
 

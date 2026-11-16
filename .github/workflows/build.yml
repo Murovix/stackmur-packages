@@ -1,7 +1,8 @@
 name: build
 
-# macOS minutes are expensive on private repositories, so full builds run on
-# pull requests and by hand; publishing only by hand from main.
+# Full builds run on pull requests and by hand; publishing only by hand from
+# main. By hand, `only` limits the build to the packages that changed: the
+# publish job merges the previous manifest, so the others stay installable.
 on:
   pull_request:
   workflow_dispatch:
@@ -10,6 +11,13 @@ on:
         description: "Sign the manifest and publish a release"
         type: boolean
         default: false
+      only:
+        description: >-
+          Packages to build, comma-separated (nginx, composer, php, php74, mysql,
+          valkey, mailpit); empty builds all. Packages left out stay in the
+          published list with their previous builds.
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -51,6 +59,8 @@ jobs:
           name: stage-nginx
           path: stage/
       - uses: actions/upload-artifact@v4
+        # Always built (the PHP smoke tests use it); published only when selected.
+        if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',nginx,')
         with:
           name: dist-nginx
           path: dist/
@@ -71,11 +81,14 @@ jobs:
           name: stage-composer
           path: stage/
       - uses: actions/upload-artifact@v4
+        # Always built (the PHP smoke tests use it); published only when selected.
+        if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',composer,')
         with:
           name: dist-composer
           path: dist/
 
   php:
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',php,')
     needs: [nginx, composer]
     runs-on: macos-15
     strategy:
@@ -132,7 +145,7 @@ jobs:
           path: dist/
 
   php74:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (inputs.only == '' || contains(format(',{0},', inputs.only), ',php74,'))
     needs: [nginx, composer]
     runs-on: macos-15
     timeout-minutes: 120
@@ -168,6 +181,7 @@ jobs:
           path: dist/
 
   mysql:
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',mysql,')
     runs-on: macos-15
     timeout-minutes: 180
     strategy:
@@ -199,6 +213,7 @@ jobs:
           path: dist/
 
   valkey:
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',valkey,')
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -221,6 +236,7 @@ jobs:
           path: dist/
 
   mailpit:
+    if: github.event_name != 'workflow_dispatch' || inputs.only == '' || contains(format(',{0},', inputs.only), ',mailpit,')
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -243,7 +259,10 @@ jobs:
           path: dist/
 
   publish:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    # Runs when every selected job passed; jobs left out are skipped.
+    if: >-
+      always() && !failure() && !cancelled() &&
+      github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
     needs: [pkgtool, php, php74, mysql, valkey, mailpit]
     runs-on: ubuntu-24.04
     permissions:
