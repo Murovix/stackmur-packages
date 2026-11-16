@@ -241,6 +241,8 @@ jobs:
             --name "mysql-${{ matrix.series }}" --version "$(cat "stage/mysql-${{ matrix.series }}.version")" \
             --license GPL-2.0-only --dir "stage/mysql-${{ matrix.series }}" --out dist
           ls -la dist
+          # Repeated here, at the end of the long build log, for pinning.
+          cat dist/unpinned-*.txt 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: dist-mysql-${{ matrix.series }}
