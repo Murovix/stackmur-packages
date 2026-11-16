@@ -25,3 +25,7 @@ redis-5.3.7.tgz b958166ccda4f40bd17c6998f9e2239021ae644467cd8ad5c15def420aad65b0
 # Valkey (recipes/valkey.sh): the GitHub tag archive, hash as published in
 # github.com/valkey-io/valkey-hashes (README, 2026-11-16).
 valkey-9.1.3.tar.gz 184e34ed2d9b51879b682b5b15205e2b9d677c60280e3cb453be8f520d04e293
+# Mailpit (recipes/mailpit.sh): official release asset, hashed on the macOS CI
+# runner 2026-11-16 (the cloud cannot download release assets): owner compares
+# with the sha256 digest on github.com/axllent/mailpit/releases/tag/v1.33.1.
+mailpit-1.33.1-darwin-arm64.tar.gz 15703838762355d42befeb1c942f3a5cc53bcf1fa3ba6abc216a05dd254a8ac2
