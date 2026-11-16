@@ -32,10 +32,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.ref }}
-  # A running build finishes even when newer commits arrive (MySQL takes 45
-  # minutes; PHP 7.4 fixes land often). Only the newest pending run waits.
-  cancel-in-progress: false
+  # Pull request checks and manual runs never wait for each other. A newer
+  # commit on a pull request cancels its older check; manual runs finish.
+  group: build-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -316,7 +316,9 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: publish
+      # Only real publishes queue behind each other; a skipped publish job
+      # (pull requests, test runs) must not hold other runs.
+      group: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) && 'publish' || format('no-publish-{0}', github.run_id) }}
       cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
