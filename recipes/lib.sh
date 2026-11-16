@@ -11,11 +11,13 @@ LOCK="$REPO_ROOT/sources.lock"
 
 die() { echo "error: $*" >&2; exit 1; }
 
-# fetch URL DIR: downloads into DIR and checks the SHA-256 pinned in
-# sources.lock. An unpinned file is allowed only with ALLOW_UNPINNED=1 (first
-# build of a new version); the publish job refuses such builds.
+# fetch URL DIR [NAME]: downloads into DIR (as NAME, default the URL's last
+# part; GitHub tag archives are only "<tag>.tar.gz") and checks the SHA-256
+# pinned in sources.lock. An unpinned file is allowed only with
+# ALLOW_UNPINNED=1 (first build of a new version); the publish job refuses
+# such builds.
 fetch() {
-    local url="$1" dir="$2" name="${1##*/}"
+    local url="$1" dir="$2" name="${3:-${1##*/}}"
     mkdir -p "$dir"
     # GitHub's release CDN has answered 504 for a minute or more at a time;
     # the pinned hash below makes every retry safe.
