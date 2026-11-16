@@ -198,9 +198,53 @@ jobs:
           name: dist-mysql-${{ matrix.series }}
           path: dist/
 
+  valkey:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: UNPINNED_LOG="$PWD/dist/unpinned-valkey.txt" recipes/valkey.sh stage/valkey
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - name: Smoke test
+        run: tests/valkey-smoke.sh stage/valkey
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name valkey --version "$(cat stage/valkey.version)" --license BSD-3-Clause \
+            --dir stage/valkey --out dist
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-valkey
+          path: dist/
+
+  mailpit:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and check
+        run: UNPINNED_LOG="$PWD/dist/unpinned-mailpit.txt" recipes/mailpit.sh stage/mailpit
+        env:
+          WORK_DIR: ${{ runner.temp }}/work
+      - name: Smoke test
+        run: tests/mailpit-smoke.sh stage/mailpit
+      - name: Pack
+        run: |
+          mkdir -p dist
+          cargo run -q --release --manifest-path tools/pkgtool/Cargo.toml -- pack \
+            --name mailpit --version "$(cat stage/mailpit.version)" --license MIT \
+            --dir stage/mailpit --out dist
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-mailpit
+          path: dist/
+
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
-    needs: [pkgtool, php, php74, mysql]
+    needs: [pkgtool, php, php74, mysql, valkey, mailpit]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

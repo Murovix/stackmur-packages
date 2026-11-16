@@ -12,6 +12,8 @@ Stackmur, and only archives whose SHA-256 and size match that manifest.
 | `php-7.4` | own pipeline (static-php-cli has no 7.4): PHP 7.4.33 with a static private OpenSSL 1.1.1w, ICU 72 and the MVP extension set; OPcache as a shared zend_extension. EOL: legacy projects only | `recipes/php74.sh` |
 | `mysql-8.0`, `mysql-8.4` | MySQL Community Server built from Oracle's source for macOS 13 (Oracle's macOS tarballs need 14+); private OpenSSL 3; no X Protocol, Router, NDB or Group Replication. 8.0 is EOL | `recipes/mysql.sh` |
 | `composer` | official `composer.phar`, checked against getcomposer.org's SHA-256 | `recipes/composer.sh` |
+| `valkey` | Valkey (BSD-3-Clause, Redis-compatible) built from the release tag; hash from valkey-io/valkey-hashes; no TLS, no `redis-*` names | `recipes/valkey.sh` |
+| `mailpit` | official Mailpit release binary for darwin-arm64 (MIT), pinned, checked for arm64, OS-only libraries and macOS 13, re-signed ad hoc | `recipes/mailpit.sh` |
 
 Targets: macOS 13+, Apple Silicon (arm64) only.
 
@@ -42,4 +44,4 @@ Stackmur reads `https://github.com/Murovix/stackmur-packages/releases/latest/dow
 ## Not yet
 
 Developer ID signing and notarization of the binaries (ad-hoc signatures for now),
-MySQL, Valkey, Mailpit, shared extensions such as xdebug.
+shared extensions such as xdebug.
